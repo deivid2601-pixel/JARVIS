@@ -25,3 +25,4 @@ Sistema que envia relatórios diários de metas via Telegram automaticamente.
 - Economia
 - Estudos
 - Saúde
+- Deploy: $(date)

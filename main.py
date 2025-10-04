@@ -1,14 +1,11 @@
-import os
 import requests
 import schedule
 import time
 from datetime import datetime
-from dotenv import load_dotenv
 
 # ========== CONFIGURAÇÕES ==========
 TELEGRAM_BOT_TOKEN = "8256513003:AAHfpBECsu1qaJiKhdE5i3eFWB32AOI_ZDY"
 TELEGRAM_CHAT_ID = "8428346208"
-GOOGLE_SHEETS_URL = "https://docs.google.com/spreadsheets/d/1UbtJqX8UH5COB2R0F62Hiiw9m7PEbgVrG0O6Q49hXvQ/edit?usp=sharing"
 
 def enviar_telegram(mensagem):
     """Envia mensagem para o Telegram"""
@@ -20,7 +17,7 @@ def enviar_telegram(mensagem):
             'parse_mode': 'HTML'
         }
         response = requests.post(url, json=payload)
-        print(f"✅ Mensagem enviada: {response.status_code}")
+        print(f"✅ Mensagem enviada")
         return True
     except Exception as e:
         print(f"❌ Erro: {e}")
@@ -60,12 +57,7 @@ def agendar_tarefas():
     # Todo dia às 9:00 AM
     schedule.every().day.at("09:00").do(relatorio_jarvis)
     
-    # Todo dia às 18:00 PM (opcional)
-    schedule.every().day.at("18:00").do(relatorio_jarvis)
-    
-    print("⏰ Agendamentos configurados:")
-    print("   - 09:00: Relatório matinal")
-    print("   - 18:00: Relatório vespertino")
+    print("⏰ Agendamento configurado: 09:00 todo dia")
     
     # Manter o script rodando
     while True:

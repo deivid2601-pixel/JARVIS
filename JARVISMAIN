@@ -1,0 +1,271 @@
+import pandas as pd
+import pywhatkit as kit
+import time
+import pyautogui
+import os
+from datetime import datetime, timedelta
+import warnings
+import random
+warnings.filterwarnings('ignore')
+
+class JarvisVendasPremium:
+    def __init__(self):
+        self.ARQUIVO_PLANILHA = r"C:\Users\gameb\Downloads\MENSAGEM.xlsx"
+        self.MEU_NUMERO = "+553133590287"
+        self.MODO_TESTE = False  # AGORA FALSE PARA ENVIAR DE VERDADE
+        
+        # Emojis para variar as mensagens
+        self.emojis_meta = ["🎯", "⭐", "🔥", "🚀", "💎", "🏆", "✨", "💪"]
+        
+    def carregar_dados_planilha(self):
+        """Carrega e limpa os dados da planilha"""
+        try:
+            print("📊 CARREGANDO DADOS...")
+            
+            df = pd.read_excel(self.ARQUIVO_PLANILHA)
+            df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+            df = df.dropna(how='all')
+            
+            # VERIFICAR COLUNAS EXISTENTES
+            print(f"🔍 Colunas encontradas: {list(df.columns)}")
+            
+            # DETECTAR COLUNAS AUTOMATICAMENTE
+            colunas_map = {}
+            for col in df.columns:
+                col_lower = str(col).lower()
+                
+                if any(palavra in col_lower for palavra in ['nome', 'vendedor']):
+                    colunas_map['NOME'] = col
+                elif any(palavra in col_lower for palavra in ['meta', 'objetivo']):
+                    colunas_map['META'] = col
+                elif any(palavra in col_lower for palavra in ['liquido', 'realizado', 'venda']):
+                    colunas_map['LIQUIDO'] = col
+                elif any(palavra in col_lower for palavra in ['celular', 'telefone', 'whatsapp', 'numero']):
+                    colunas_map['CELULAR'] = col
+            
+            print(f"🎯 Colunas mapeadas: {colunas_map}")
+            
+            # RENOMEAR COLUNAS PARA O PADRÃO DO CÓDIGO
+            for col_padrao, col_original in colunas_map.items():
+                df[col_padrao] = df[col_original]
+            
+            # VERIFICAR SE TEMOS DADOS MÍNIMOS
+            if 'NOME' not in df.columns:
+                print("❌ ERRO: Coluna 'NOME' não encontrada!")
+                return None
+            
+            # CÁLCULOS DE DESEMPENHO
+            if 'META' in df.columns and 'LIQUIDO' in df.columns:
+                df['RANKING'] = df['LIQUIDO'].rank(ascending=False)
+                df['ATINGIMENTO'] = (df['LIQUIDO'] / df['META']) * 100
+                df['FALTANTE'] = df['META'] - df['LIQUIDO']
+                df['EXCEDENTE'] = df['LIQUIDO'] - df['META']
+                
+                print(f"✅ Cálculos de desempenho adicionados")
+            
+            print(f"✅ {len(df)} vendedores carregados com sucesso!")
+            return df
+            
+        except Exception as e:
+            print(f"❌ Erro crítico ao carregar planilha: {e}")
+            return None
+    
+    def obter_mensagem_desempenho(self, atingimento, faltante, nome, excedente=0):
+        """Retorna mensagem personalizada baseada no percentual de desempenho"""
+        
+        if atingimento < 50:
+            return {
+                'emoji': "🔴",
+                'titulo': "VAMOS JUNTOS BUSCAR SUA META!",
+                'mensagem': f"*{nome}*, que tal darmos uma nova estratégia? Faltam R$ {faltante:,.2f} para sua meta.\n📈 Vamos encontrar o melhor caminho para alcançar seu objetivo!",
+                'dica': "💡 Dica: Foque nas vendas de maior valor e revise sua abordagem!"
+            }
+        
+        elif atingimento < 80:
+            return {
+                'emoji': "🟡",
+                'titulo': "VOCÊ ESTÁ NO CAMINHO CERTO!",
+                'mensagem': f"*{nome}*, faltou pouco! Apenas R$ {faltante:,.2f} para bater a meta.\n⚡ Ajuste o foco e continue avançando!",
+                'dica': "💡 Dica: Revise seus clientes pendentes e faça follow-up!"
+            }
+        
+        elif atingimento < 100:
+            return {
+                'emoji': "🟠", 
+                'titulo': "QUASE LÁ! ÚLTIMO ESFORÇO!",
+                'mensagem': f"*{nome}*, tá chegando! Só R$ {faltante:,.2f} para conquistar sua meta.\n🎯 Mais um push final!",
+                'dica': "💡 Dica: Foque nos clientes mais próximos de fechar!"
+            }
+        
+        elif atingimento == 100:
+            return {
+                'emoji': "🟢",
+                'titulo': "META BATIDA! PARABÉNS!",
+                'mensagem': f"*{nome}*, você ATINGIU 100% da meta!\n🎊 Comemore este resultado e já prepare o próximo desafio!",
+                'dica': "💡 Dica: Agora é hora de mirar ainda mais alto!"
+            }
+        
+        elif atingimento < 150:
+            return {
+                'emoji': "🔵",
+                'titulo': "META SUPERADA! EXCELENTE!",
+                'mensagem': f"*{nome}*, você foi além! Superou a meta em R$ {excedente:,.2f}!\n🌟 Resultado fantástico!",
+                'dica': "💡 Dica: Continue com essa performance incrível!"
+            }
+        
+        else:  # acima de 150%
+            return {
+                'emoji': "💥",
+                'titulo': "ARREBENTOU A BOCA DO BALÃO!",
+                'mensagem': f"*{nome}*, performance ESPETACULAR! {atingimento:.1f}% de atingimento!\n🚀 Você é referência! Continue brilhando!",
+                'dica': "💡 Dica: Você está no patamar dos grandes performers!"
+            }
+    
+    def criar_mensagem_premium(self, vendedor):
+        """Cria mensagem premium com ranking e mensagens personalizadas"""
+        nome = vendedor['NOME']
+        
+        # VERIFICAR SE TEM DADOS DE META E LIQUIDO
+        if 'META' in vendedor and 'LIQUIDO' in vendedor and pd.notna(vendedor['META']) and pd.notna(vendedor['LIQUIDO']):
+            meta = float(vendedor['META'])
+            liquido = float(vendedor['LIQUIDO'])
+            atingimento = float(vendedor['ATINGIMENTO'])
+            faltante = float(vendedor['FALTANTE'])
+            excedente = float(vendedor.get('EXCEDENTE', 0))
+            ranking = int(vendedor['RANKING'])
+            
+            # Obtém mensagem personalizada baseada no desempenho
+            msg_desempenho = self.obter_mensagem_desempenho(atingimento, faltante, nome, excedente)
+            
+            # Constrói a mensagem
+            mensagem = f"{msg_desempenho['emoji']} *RELATÓRIO {nome}* {msg_desempenho['emoji']}\n\n"
+            mensagem += "📊 SEU DESEMPENHO:\n"
+            mensagem += "├─ 🎯 Meta: R$ {:,.2f}\n".format(meta)
+            mensagem += "├─ 💵 Realizado: R$ {:,.2f}\n".format(liquido)
+            mensagem += "├─ 📈 Atingimento: {:.1f}%\n".format(atingimento)
+            mensagem += "└─ 🏅 Posição: {}º lugar\n\n".format(ranking)
+            
+            # Adiciona mensagem personalizada
+            mensagem += f"⚡ *{msg_desempenho['titulo']}* ⚡\n"
+            mensagem += f"{msg_desempenho['mensagem']}\n\n"
+            mensagem += f"{msg_desempenho['dica']}\n"
+            
+            # Adiciona mensagem extra para quem bateu meta
+            if atingimento >= 100:
+                mensagem += "\n🎯 *PRÓXIMO DESAFIO:* Manter essa performance incrível!"
+            else:
+                mensagem += f"\n🎯 *PRÓXIMO DESAFIO:* Alcançar os R$ {faltante:,.2f} faltantes!"
+        else:
+            # Mensagem básica se não tiver dados completos
+            mensagem = f"📊 *RELATÓRIO {nome}*\n\n"
+            mensagem += "Olá! Aqui está seu relatório individual.\n"
+            mensagem += "Entre em contato para mais detalhes sobre seu desempenho."
+        
+        mensagem += f"\n🕒 {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        return mensagem
+
+    def formatar_numero_whatsapp(self, numero):
+        """Formata o número para o padrão do WhatsApp"""
+        # Remove caracteres não numéricos
+        numero_limpo = ''.join(filter(str.isdigit, str(numero)))
+        
+        # Verifica se tem código do país
+        if not numero_limpo.startswith('55'):
+            numero_limpo = '55' + numero_limpo
+            
+        return '+' + numero_limpo
+
+    def enviar_whatsapp(self, numero, mensagem):
+        """Envia mensagem via WhatsApp Web"""
+        try:
+            if self.MODO_TESTE:
+                print(f"🧪 MODO TESTE - Mensagem para {numero}:")
+                print("-" * 50)
+                print(mensagem)
+                print("-" * 50)
+                time.sleep(1)
+                return True
+            
+            print(f"📤 ENVIANDO PARA {numero}...")
+            
+            # Formatar número
+            numero_formatado = self.formatar_numero_whatsapp(numero)
+            print(f"📞 Número formatado: {numero_formatado}")
+            
+            # Envia a mensagem
+            kit.sendwhatmsg_instantly(
+                phone_no=numero_formatado,
+                message=mensagem,
+                wait_time=20,
+                tab_close=False
+            )
+            
+            # Aguarda a mensagem ser enviada
+            time.sleep(8)
+            
+            # Fecha a aba
+            pyautogui.hotkey('ctrl', 'w')
+            time.sleep(2)
+            
+            print(f"✅ MENSAGEM ENVIADA PARA {numero}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ ERRO AO ENVIAR PARA {numero}: {e}")
+            return False
+
+    def executar_campanha(self):
+        """Executa a campanha completa de mensagens"""
+        print("🚀 INICIANDO CAMPANHA JARVIS PREMIUM")
+        print("=" * 50)
+        
+        df = self.carregar_dados_planilha()
+        if df is None:
+            print("❌ Não foi possível carregar os dados")
+            return
+        
+        # Ordena por ranking (melhores primeiro)
+        if 'RANKING' in df.columns:
+            df = df.sort_values('RANKING')
+        
+        total = len(df)
+        sucessos = 0
+        
+        print("⚠️  CERTIFIQUE-SE QUE:")
+        print("1. Você está logado no WhatsApp Web")
+        print("2. A janela do navegador está visível")
+        print("3. Não mexa no computador durante o envio")
+        print("=" * 50)
+        
+        input("Pressione ENTER para iniciar o envio...")
+        
+        for index, vendedor in df.iterrows():
+            print(f"\n📋 Processando {vendedor['NOME']} ({index + 1}/{total})...")
+            
+            # Cria mensagem personalizada
+            mensagem = self.criar_mensagem_premium(vendedor)
+            
+            # Determinar número de destino
+            if 'CELULAR' in vendedor and pd.notna(vendedor['CELULAR']):
+                numero_destino = vendedor['CELULAR']
+            else:
+                print(f"⚠️  Sem número para {vendedor['NOME']}, pulando...")
+                continue
+            
+            # Enviar mensagem
+            if self.enviar_whatsapp(numero_destino, mensagem):
+                sucessos += 1
+            
+            # Intervalo MÍNIMO entre mensagens
+            if index < total - 1:
+                intervalo = 5  # Apenas 5 segundos entre mensagens
+                print(f"⏳ Aguardando {intervalo} segundos...")
+                time.sleep(intervalo)
+        
+        print(f"\n🎉 CAMPANHA CONCLUÍDA!")
+        print(f"✅ {sucessos}/{total} mensagens enviadas com sucesso")
+
+# Executar a campanha
+if __name__ == "__main__":
+    jarvis = JarvisVendasPremium()
+    jarvis.executar_campanha()
